@@ -112,6 +112,14 @@ def main() -> int:
         help="Public HTTPS URL of the ClosedClub Mini App",
     )
     parser.add_argument(
+        "--webhook-url",
+        default=os.environ.get("TELEGRAM_WEBHOOK_URL"),
+        help=(
+            "Public HTTPS Telegram webhook endpoint; defaults to "
+            "<web-app-url>/api/telegram/webhook"
+        ),
+    )
+    parser.add_argument(
         "--drop-pending-updates",
         action="store_true",
         help="Discard updates queued before webhook registration",
@@ -124,6 +132,11 @@ def main() -> int:
 
     if not args.web_app_url:
         parser.error("--web-app-url or TELEGRAM_WEB_APP_URL is required")
+
+    if args.webhook_url:
+        parsed_webhook_url = urllib.parse.urlparse(args.webhook_url)
+        if parsed_webhook_url.scheme != "https" or not parsed_webhook_url.netloc:
+            parser.error("--webhook-url must be an absolute HTTPS URL")
 
     token = read_secret("TELEGRAM_BOT_TOKEN", "Telegram bot token: ")
     webhook_secret = read_secret(
@@ -138,7 +151,10 @@ def main() -> int:
     )
 
     web_app_url = require_https_url(args.web_app_url)
-    webhook_url = f"{web_app_url.rstrip('/')}/api/telegram/webhook"
+    webhook_url = (
+        args.webhook_url
+        or f"{web_app_url.rstrip('/')}/api/telegram/webhook"
+    )
     web_app_button = {
         "type": "web_app",
         "text": "Открыть ClosedClub",

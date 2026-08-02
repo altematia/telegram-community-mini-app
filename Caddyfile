@@ -4,7 +4,7 @@
 	admin off
 }
 
-{$SITE_ADDRESS} {
+{$SITE_ADDRESS}, {$TELEGRAM_WEBHOOK_ADDRESS} {
 	tls {
 		issuer acme {
 			profile shortlived

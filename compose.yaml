@@ -166,6 +166,7 @@ services:
       - "443:443/udp"
     environment:
       SITE_ADDRESS: ${SITE_ADDRESS:?Set SITE_ADDRESS in .env}
+      TELEGRAM_WEBHOOK_ADDRESS: ${TELEGRAM_WEBHOOK_ADDRESS:?Set TELEGRAM_WEBHOOK_ADDRESS in .env}
       ACME_EMAIL: ${ACME_EMAIL:?Set ACME_EMAIL in .env}
     depends_on:
       backend:

@@ -30,6 +30,7 @@ chmod 600 .env
 Обязательные переменные:
 
 - `SITE_ADDRESS` — домен или текущий публичный IP;
+- `TELEGRAM_WEBHOOK_ADDRESS` — DNS-имя для Telegram webhook, указывающее на VPS;
 - `ACME_EMAIL` — email для ACME;
 - `POSTGRES_DB` и `POSTGRES_USER` — имя базы и пользователь;
 - `POSTGRES_PASSWORD` — длинный случайный пароль, который не коммитится;
@@ -53,12 +54,14 @@ docker compose up -d --build
 После деплоя запустите с компьютера, которому доступен `api.telegram.org`:
 
 ```sh
-python scripts/configure_bot.py --web-app-url https://109.172.6.81/
+python scripts/configure_bot.py \
+  --web-app-url https://109.172.6.81/ \
+  --webhook-url https://109-172-6-81.sslip.io/api/telegram/webhook
 ```
 
 Если на машине несколько сетевых маршрутов, можно явно выбрать исходящий адрес: `--source-address 192.168.1.8`.
 
-Скрипт безопасно запросит токен и webhook secret без вывода на экран, затем настроит имя `ClosedClub`, команды `/start` и `/help`, постоянную кнопку меню и HTTPS webhook. FastAPI проверяет заголовок `X-Telegram-Bot-Api-Secret-Token`; на `/start` Telegram получает сообщение с кнопкой «Открыть ClosedClub».
+Скрипт безопасно запросит токен и webhook secret без вывода на экран, затем настроит имя `ClosedClub`, команды `/start` и `/help`, постоянную кнопку меню и HTTPS webhook. Для webhook используется DNS-имя, потому что Telegram ожидает HTTPS-хост с подходящим сертификатом; Web App при этом может оставаться на текущем IP. FastAPI проверяет заголовок `X-Telegram-Bot-Api-Secret-Token`; на `/start` Telegram получает сообщение с кнопкой «Открыть ClosedClub».
 
 Ответ `sendMessage` передаётся прямо в HTTP-ответе webhook, поэтому стартовый экран работает без исходящего запроса VPS к Bot API. Для будущих отложенных уведомлений и произвольных сообщений серверу всё равно потребуется рабочий egress к `api.telegram.org`.
 
