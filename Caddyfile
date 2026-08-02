@@ -42,6 +42,7 @@
 			wrap console
 			fields {
 				request>headers>X-Telegram-Bot-Api-Secret-Token delete
+				request>headers>X-Telegram-Init-Data delete
 			}
 		}
 	}
