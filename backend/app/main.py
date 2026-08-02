@@ -1,4 +1,3 @@
-import hmac
 import logging
 from typing import Annotated, Any
 
@@ -7,7 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.bot import build_webhook_response
+from app.bot import build_webhook_response, webhook_secret_matches
 from app.config import settings
 from app.database import engine, get_session
 from app.models import Application
@@ -53,7 +52,7 @@ async def telegram_webhook(
     ] = None,
 ) -> dict[str, Any] | Response:
     expected_secret = settings.telegram_webhook_secret.get_secret_value()
-    if not hmac.compare_digest(telegram_secret or "", expected_secret):
+    if not webhook_secret_matches(telegram_secret, expected_secret):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Invalid webhook secret",

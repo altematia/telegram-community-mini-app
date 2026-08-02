@@ -1,3 +1,4 @@
+import hmac
 from typing import Any
 
 
@@ -10,6 +11,16 @@ ADMIN_TEXT = (
     "Админ-панель пока не подключена. Сейчас доступна заявка на вступление в "
     "ClosedClub."
 )
+
+
+def webhook_secret_matches(provided: str | None, expected: str) -> bool:
+    try:
+        provided_bytes = (provided or "").encode("ascii")
+        expected_bytes = expected.encode("ascii")
+    except UnicodeEncodeError:
+        return False
+
+    return hmac.compare_digest(provided_bytes, expected_bytes)
 
 
 def build_webhook_response(
@@ -46,13 +57,13 @@ def build_webhook_response(
     if command not in {"/start", "/help", "/admin"}:
         return None
 
-    response_text = ADMIN_TEXT if command == "/admin" else WELCOME_TEXT
-
-    return {
+    response: dict[str, Any] = {
         "method": "sendMessage",
         "chat_id": chat["id"],
-        "text": response_text,
-        "reply_markup": {
+        "text": ADMIN_TEXT if command == "/admin" else WELCOME_TEXT,
+    }
+    if command != "/admin":
+        response["reply_markup"] = {
             "inline_keyboard": [
                 [
                     {
@@ -61,5 +72,6 @@ def build_webhook_response(
                     }
                 ]
             ]
-        },
-    }
+        }
+
+    return response

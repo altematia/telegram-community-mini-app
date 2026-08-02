@@ -1,6 +1,11 @@
 import unittest
 
-from app.bot import ADMIN_TEXT, WELCOME_TEXT, build_webhook_response
+from app.bot import (
+    ADMIN_TEXT,
+    WELCOME_TEXT,
+    build_webhook_response,
+    webhook_secret_matches,
+)
 
 
 WEB_APP_URL = "https://109.172.6.81/"
@@ -46,6 +51,15 @@ class BuildWebhookResponseTests(unittest.TestCase):
         self.assertIsNotNone(response)
         assert response is not None
         self.assertEqual(response["text"], ADMIN_TEXT)
+        self.assertNotIn("reply_markup", response)
+
+    def test_webhook_secret_comparison_rejects_invalid_values(self) -> None:
+        expected = "a" * 64
+
+        self.assertTrue(webhook_secret_matches(expected, expected))
+        self.assertFalse(webhook_secret_matches(None, expected))
+        self.assertFalse(webhook_secret_matches("wrong", expected))
+        self.assertFalse(webhook_secret_matches("секрет", expected))
 
     def test_irrelevant_updates_are_ignored(self) -> None:
         ignored_updates = (

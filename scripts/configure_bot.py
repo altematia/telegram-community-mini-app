@@ -34,7 +34,15 @@ def bot_api_call(token: str, method: str, payload: dict[str, Any]) -> Any:
     try:
         with urllib.request.urlopen(request, timeout=30) as response:
             result = json.load(response)
-    except (urllib.error.HTTPError, urllib.error.URLError, TimeoutError) as exc:
+    except urllib.error.HTTPError as exc:
+        try:
+            error_result = json.load(exc)
+        except (json.JSONDecodeError, UnicodeDecodeError):
+            description = f"HTTP {exc.code}"
+        else:
+            description = error_result.get("description", f"HTTP {exc.code}")
+        raise RuntimeError(f"{method}: {description}") from None
+    except (urllib.error.URLError, TimeoutError) as exc:
         raise RuntimeError(f"Telegram API request failed for {method}") from exc
 
     if not result.get("ok"):
