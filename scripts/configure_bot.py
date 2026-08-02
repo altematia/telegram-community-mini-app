@@ -8,6 +8,7 @@ import getpass
 import http.client
 import json
 import os
+import socket
 import ssl
 import string
 import sys
@@ -31,16 +32,31 @@ def bot_api_call(
     *,
     source_address: str | None = None,
 ) -> Any:
+    tls_context = ssl.create_default_context()
     connection = http.client.HTTPSConnection(
         "api.telegram.org",
         timeout=30,
-        source_address=(source_address, 0) if source_address else None,
-        context=ssl.create_default_context(),
+        context=tls_context,
     )
     body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
     path = f"/bot{urllib.parse.quote(token, safe=':_-')}/{method}"
 
     try:
+        telegram_ipv4 = socket.gethostbyname("api.telegram.org")
+        raw_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        raw_socket.settimeout(30)
+        if source_address:
+            raw_socket.bind((source_address, 0))
+        try:
+            raw_socket.connect((telegram_ipv4, 443))
+            connection.sock = tls_context.wrap_socket(
+                raw_socket,
+                server_hostname="api.telegram.org",
+            )
+        except BaseException:
+            raw_socket.close()
+            raise
+
         connection.request(
             "POST",
             path,
