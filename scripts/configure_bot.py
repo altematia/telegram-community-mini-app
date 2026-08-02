@@ -114,10 +114,7 @@ def main() -> int:
     parser.add_argument(
         "--webhook-url",
         default=os.environ.get("TELEGRAM_WEBHOOK_URL"),
-        help=(
-            "Public HTTPS Telegram webhook endpoint; defaults to "
-            "<web-app-url>/api/telegram/webhook"
-        ),
+        help="Public HTTPS Telegram webhook endpoint",
     )
     parser.add_argument(
         "--drop-pending-updates",
@@ -133,10 +130,29 @@ def main() -> int:
     if not args.web_app_url:
         parser.error("--web-app-url or TELEGRAM_WEB_APP_URL is required")
 
-    if args.webhook_url:
-        parsed_webhook_url = urllib.parse.urlparse(args.webhook_url)
-        if parsed_webhook_url.scheme != "https" or not parsed_webhook_url.netloc:
-            parser.error("--webhook-url must be an absolute HTTPS URL")
+    if not args.webhook_url:
+        parser.error("--webhook-url or TELEGRAM_WEBHOOK_URL is required")
+
+    parsed_webhook_url = urllib.parse.urlparse(args.webhook_url)
+    try:
+        webhook_port = parsed_webhook_url.port
+    except ValueError:
+        parser.error("--webhook-url contains an invalid port")
+    if (
+        parsed_webhook_url.scheme != "https"
+        or not parsed_webhook_url.hostname
+        or parsed_webhook_url.username is not None
+        or parsed_webhook_url.password is not None
+        or webhook_port not in (None, 443)
+        or parsed_webhook_url.path != "/api/telegram/webhook"
+        or parsed_webhook_url.params
+        or parsed_webhook_url.query
+        or parsed_webhook_url.fragment
+    ):
+        parser.error(
+            "--webhook-url must be an HTTPS URL on port 443 with the exact "
+            "path /api/telegram/webhook and no query or fragment"
+        )
 
     token = read_secret("TELEGRAM_BOT_TOKEN", "Telegram bot token: ")
     webhook_secret = read_secret(
@@ -151,10 +167,7 @@ def main() -> int:
     )
 
     web_app_url = require_https_url(args.web_app_url)
-    webhook_url = (
-        args.webhook_url
-        or f"{web_app_url.rstrip('/')}/api/telegram/webhook"
-    )
+    webhook_url = args.webhook_url
     web_app_button = {
         "type": "web_app",
         "text": "Открыть ClosedClub",

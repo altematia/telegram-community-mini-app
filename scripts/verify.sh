@@ -40,6 +40,8 @@ wait_for_service frontend
 wait_for_service caddy
 
 base_url="https://${SITE_ADDRESS}"
+: "${TELEGRAM_WEBHOOK_ADDRESS:?Set TELEGRAM_WEBHOOK_ADDRESS in .env}"
+webhook_base_url="https://${TELEGRAM_WEBHOOK_ADDRESS}"
 
 health_response="$(curl -4fsS --max-time 15 "${base_url}/api/health")"
 case "$health_response" in
@@ -53,7 +55,7 @@ invalid_webhook_status="$(curl -4sS --max-time 15 \
   -H 'Content-Type: application/json' \
   -H 'X-Telegram-Bot-Api-Secret-Token: invalid' \
   -d '{"update_id":1}' \
-  "${base_url}/api/telegram/webhook")"
+  "${webhook_base_url}/api/telegram/webhook")"
 test "$invalid_webhook_status" = "403" || {
   echo "Telegram webhook accepted an invalid secret" >&2
   exit 1
@@ -63,7 +65,7 @@ webhook_response="$(curl -4fsS --max-time 15 \
   -H 'Content-Type: application/json' \
   -H "X-Telegram-Bot-Api-Secret-Token: ${TELEGRAM_WEBHOOK_SECRET}" \
   -d '{"update_id":2,"message":{"message_id":3,"from":{"id":999999999,"is_bot":false},"chat":{"id":999999999,"type":"private"},"text":"/start"}}' \
-  "${base_url}/api/telegram/webhook")"
+  "${webhook_base_url}/api/telegram/webhook")"
 case "$webhook_response" in
   *'"method":"sendMessage"'*'"web_app"'*"$base_url"*) ;;
   *) echo "Unexpected Telegram webhook response: $webhook_response" >&2; exit 1 ;;
