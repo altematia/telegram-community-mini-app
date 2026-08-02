@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#0b1020">
+    <meta name="description" content="Стартовая страница будущего закрытого Telegram-сообщества.">
+    <title>Hello World — Private Circle</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #070a12;
+        --panel: rgba(18, 24, 43, 0.72);
+        --line: rgba(255, 255, 255, 0.1);
+        --text: #f7f8ff;
+        --muted: #a8b0c7;
+        --accent: #7c6cff;
+        --accent-2: #36d7c4;
+      }
+
+      * { box-sizing: border-box; }
+
+      body {
+        min-height: 100vh;
+        margin: 0;
+        display: grid;
+        place-items: center;
+        overflow: hidden;
+        font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        color: var(--text);
+        background:
+          radial-gradient(circle at 18% 16%, rgba(124, 108, 255, 0.26), transparent 32rem),
+          radial-gradient(circle at 84% 78%, rgba(54, 215, 196, 0.18), transparent 30rem),
+          var(--bg);
+      }
+
+      body::before {
+        content: "";
+        position: fixed;
+        inset: 0;
+        opacity: 0.24;
+        background-image:
+          linear-gradient(var(--line) 1px, transparent 1px),
+          linear-gradient(90deg, var(--line) 1px, transparent 1px);
+        background-size: 44px 44px;
+        mask-image: linear-gradient(to bottom, black, transparent 82%);
+        pointer-events: none;
+      }
+
+      main {
+        position: relative;
+        width: min(680px, calc(100% - 32px));
+        padding: clamp(32px, 7vw, 64px);
+        border: 1px solid var(--line);
+        border-radius: 28px;
+        background: var(--panel);
+        box-shadow: 0 32px 100px rgba(0, 0, 0, 0.42);
+        backdrop-filter: blur(24px);
+      }
+
+      .eyebrow {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 26px;
+        color: var(--muted);
+        font-size: 13px;
+        font-weight: 700;
+        letter-spacing: 0.13em;
+        text-transform: uppercase;
+      }
+
+      .dot {
+        width: 9px;
+        height: 9px;
+        border-radius: 50%;
+        background: var(--accent-2);
+        box-shadow: 0 0 0 6px rgba(54, 215, 196, 0.12), 0 0 22px rgba(54, 215, 196, 0.65);
+      }
+
+      h1 {
+        margin: 0;
+        font-size: clamp(48px, 10vw, 92px);
+        line-height: 0.95;
+        letter-spacing: -0.065em;
+      }
+
+      h1 span {
+        color: transparent;
+        background: linear-gradient(120deg, #ffffff 20%, #a79dff 56%, #56e3d2);
+        background-clip: text;
+      }
+
+      p {
+        max-width: 520px;
+        margin: 28px 0 0;
+        color: var(--muted);
+        font-size: clamp(16px, 2.4vw, 19px);
+        line-height: 1.65;
+      }
+
+      .meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-top: 34px;
+      }
+
+      .chip {
+        padding: 9px 13px;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        color: #cbd1e3;
+        background: rgba(255, 255, 255, 0.035);
+        font-size: 13px;
+      }
+
+      @media (prefers-reduced-motion: no-preference) {
+        main { animation: reveal 700ms cubic-bezier(.2, .75, .2, 1) both; }
+        @keyframes reveal {
+          from { opacity: 0; transform: translateY(18px) scale(.98); }
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <div class="eyebrow"><span class="dot"></span> Foundation online</div>
+      <h1>Hello<br><span>World.</span></h1>
+      <p>Первичная инфраструктура будущего закрытого Telegram-сообщества готова к развитию.</p>
+      <div class="meta" aria-label="Технологии">
+        <span class="chip">Docker</span>
+        <span class="chip">Caddy</span>
+        <span class="chip">HTTPS</span>
+        <span class="chip">Telegram Mini App</span>
+      </div>
+    </main>
+  </body>
+</html>

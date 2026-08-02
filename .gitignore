@@ -1,0 +1,13 @@
+.env
+*.log
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# VPN credentials and private keys must never be committed.
+vpn/*.conf
+vpn/*.ovpn
+vpn/*.key
+vpn/*.pem
+!vpn/.gitkeep
