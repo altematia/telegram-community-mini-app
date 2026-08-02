@@ -56,6 +56,8 @@ docker compose up -d --build
 python scripts/configure_bot.py --web-app-url https://109.172.6.81/
 ```
 
+Если на машине несколько сетевых маршрутов, можно явно выбрать исходящий адрес: `--source-address 192.168.1.8`.
+
 Скрипт безопасно запросит токен и webhook secret без вывода на экран, затем настроит имя `ClosedClub`, команды `/start` и `/help`, постоянную кнопку меню и HTTPS webhook. FastAPI проверяет заголовок `X-Telegram-Bot-Api-Secret-Token`; на `/start` Telegram получает сообщение с кнопкой «Открыть ClosedClub».
 
 Ответ `sendMessage` передаётся прямо в HTTP-ответе webhook, поэтому стартовый экран работает без исходящего запроса VPS к Bot API. Для будущих отложенных уведомлений и произвольных сообщений серверу всё равно потребуется рабочий egress к `api.telegram.org`.

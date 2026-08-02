@@ -5,14 +5,15 @@ from __future__ import annotations
 
 import argparse
 import getpass
+import http.client
 import json
 import os
+import ssl
 import string
 import sys
 import time
-import urllib.error
 import urllib.parse
-import urllib.request
+from functools import partial
 from typing import Any
 
 
@@ -23,27 +24,39 @@ BOT_DESCRIPTION = (
 BOT_SHORT_DESCRIPTION = "Заявка в закрытое инвестиционное сообщество."
 
 
-def bot_api_call(token: str, method: str, payload: dict[str, Any]) -> Any:
-    request = urllib.request.Request(
-        f"https://api.telegram.org/bot{token}/{method}",
-        data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
-        headers={"Content-Type": "application/json"},
-        method="POST",
+def bot_api_call(
+    token: str,
+    method: str,
+    payload: dict[str, Any],
+    *,
+    source_address: str | None = None,
+) -> Any:
+    connection = http.client.HTTPSConnection(
+        "api.telegram.org",
+        timeout=30,
+        source_address=(source_address, 0) if source_address else None,
+        context=ssl.create_default_context(),
     )
+    body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+    path = f"/bot{urllib.parse.quote(token, safe=':_-')}/{method}"
 
     try:
-        with urllib.request.urlopen(request, timeout=30) as response:
-            result = json.load(response)
-    except urllib.error.HTTPError as exc:
+        connection.request(
+            "POST",
+            path,
+            body=body,
+            headers={"Content-Type": "application/json"},
+        )
+        response = connection.getresponse()
+        response_body = response.read()
         try:
-            error_result = json.load(exc)
+            result = json.loads(response_body)
         except (json.JSONDecodeError, UnicodeDecodeError):
-            description = f"HTTP {exc.code}"
-        else:
-            description = error_result.get("description", f"HTTP {exc.code}")
-        raise RuntimeError(f"{method}: {description}") from None
-    except (urllib.error.URLError, TimeoutError) as exc:
+            raise RuntimeError(f"{method}: HTTP {response.status}") from None
+    except (OSError, TimeoutError) as exc:
         raise RuntimeError(f"Telegram API request failed for {method}") from exc
+    finally:
+        connection.close()
 
     if not result.get("ok"):
         description = result.get("description", "unknown Telegram API error")
@@ -87,6 +100,10 @@ def main() -> int:
         action="store_true",
         help="Discard updates queued before webhook registration",
     )
+    parser.add_argument(
+        "--source-address",
+        help="Local IPv4 address used for outbound Bot API connections",
+    )
     args = parser.parse_args()
 
     if not args.web_app_url:
@@ -98,6 +115,11 @@ def main() -> int:
         "Telegram webhook secret: ",
     )
     validate_webhook_secret(webhook_secret)
+    api = partial(
+        bot_api_call,
+        token,
+        source_address=args.source_address,
+    )
 
     web_app_url = require_https_url(args.web_app_url)
     webhook_url = f"{web_app_url.rstrip('/')}/api/telegram/webhook"
@@ -107,15 +129,13 @@ def main() -> int:
         "web_app": {"url": web_app_url},
     }
 
-    bot_api_call(token, "setMyName", {"name": BOT_NAME})
-    bot_api_call(token, "setMyDescription", {"description": BOT_DESCRIPTION})
-    bot_api_call(
-        token,
+    api("setMyName", {"name": BOT_NAME})
+    api("setMyDescription", {"description": BOT_DESCRIPTION})
+    api(
         "setMyShortDescription",
         {"short_description": BOT_SHORT_DESCRIPTION},
     )
-    bot_api_call(
-        token,
+    api(
         "setMyCommands",
         {
             "commands": [
@@ -124,10 +144,9 @@ def main() -> int:
             ]
         },
     )
-    bot_api_call(token, "setChatMenuButton", {"menu_button": web_app_button})
+    api("setChatMenuButton", {"menu_button": web_app_button})
     webhook_configured_at = int(time.time())
-    bot_api_call(
-        token,
+    api(
         "setWebhook",
         {
             "url": webhook_url,
@@ -138,9 +157,9 @@ def main() -> int:
         },
     )
 
-    bot = bot_api_call(token, "getMe", {})
-    menu = bot_api_call(token, "getChatMenuButton", {})
-    webhook = bot_api_call(token, "getWebhookInfo", {})
+    bot = api("getMe", {})
+    menu = api("getChatMenuButton", {})
+    webhook = api("getWebhookInfo", {})
 
     print(f"Bot: @{bot.get('username', 'unknown')} ({bot.get('first_name', BOT_NAME)})")
     print(
