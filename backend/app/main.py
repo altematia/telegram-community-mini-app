@@ -1,10 +1,13 @@
+import hmac
 import logging
+from typing import Annotated, Any
 
-from fastapi import Depends, FastAPI, HTTPException, status
+from fastapi import Depends, FastAPI, Header, HTTPException, Response, status
 from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.bot import build_webhook_response
 from app.config import settings
 from app.database import engine, get_session
 from app.models import Application
@@ -35,6 +38,35 @@ async def health() -> HealthResponse:
         ) from exc
 
     return HealthResponse(status="ok", database="ok")
+
+
+@app.post(
+    "/api/telegram/webhook",
+    include_in_schema=False,
+    response_model=None,
+)
+async def telegram_webhook(
+    update: dict[str, Any],
+    telegram_secret: Annotated[
+        str | None,
+        Header(alias="X-Telegram-Bot-Api-Secret-Token"),
+    ] = None,
+) -> dict[str, Any] | Response:
+    expected_secret = settings.telegram_webhook_secret.get_secret_value()
+    if not hmac.compare_digest(telegram_secret or "", expected_secret):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Invalid webhook secret",
+        )
+
+    bot_response = build_webhook_response(
+        update,
+        str(settings.telegram_web_app_url),
+    )
+    if bot_response is None:
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+    return bot_response
 
 
 @app.post(

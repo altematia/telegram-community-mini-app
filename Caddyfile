@@ -17,7 +17,7 @@
 	@api path /api/*
 	handle @api {
 		request_body {
-			max_size 32KB
+			max_size 128KB
 		}
 		header Cache-Control "no-store"
 		reverse_proxy backend:8000
@@ -38,7 +38,12 @@
 
 	log {
 		output stdout
-		format console
+		format filter {
+			wrap console
+			fields {
+				request>headers>X-Telegram-Bot-Api-Secret-Token delete
+			}
+		}
 	}
 }
 

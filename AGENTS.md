@@ -6,6 +6,7 @@ These instructions apply to the entire repository and are mandatory for every AI
 
 - ClosedClub is a Telegram Web App for a private investment community.
 - The current product flow has three screens: landing page, membership application, and submission confirmation.
+- The Telegram bot must answer `/start` and `/help` with a button that opens the Web App. `/admin` only explains that the admin panel is not available yet.
 - The application fields are first name, last name, occupation, monthly income, and city.
 - The stack is React, FastAPI, PostgreSQL, Caddy, and Docker Compose.
 - Do not add an admin panel until it is explicitly requested.
@@ -16,6 +17,7 @@ These instructions apply to the entire repository and are mandatory for every AI
 - Caddy is the only public application entry point. Frontend, backend, and database ports must not be published on the host.
 - PostgreSQL data must live in its named Docker volume.
 - Secrets belong only in the untracked `.env` or an external secret store. Never commit credentials, bot tokens, VPN profiles, SSH keys, or production database passwords.
+- Telegram updates use the authenticated FastAPI webhook. Keep the webhook secret validation and the Web App launch button intact.
 - The normal deployment is exactly: `git pull` followed by `docker compose up -d --build`. Do not reboot the VPS for an application deployment.
 - Preserve existing VPS services and port ownership. The project currently publishes only HTTPS on port 443 because host nginx/ISPmanager owns port 80.
 

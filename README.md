@@ -1,11 +1,11 @@
 # ClosedClub Telegram Web App
 
-ClosedClub — закрытое инвестиционное сообщество. Текущая версия содержит мобильный лендинг, форму заявки и экран подтверждения. Каждая заявка подписывается Telegram `initData`, проверяется FastAPI и сохраняется в PostgreSQL вместе с Telegram user ID. Админки и публичного API для чтения заявок пока нет.
+ClosedClub — закрытое инвестиционное сообщество. Текущая версия содержит Telegram-бота с кнопкой запуска, мобильный лендинг, форму заявки и экран подтверждения. Каждая заявка подписывается Telegram `initData`, проверяется FastAPI и сохраняется в PostgreSQL вместе с Telegram user ID. Админки и публичного API для чтения заявок пока нет.
 
 ## Состав
 
 - `frontend/` — React + Vite, три маршрута: `/`, `/apply`, `/success`;
-- `backend/` — FastAPI, SQLAlchemy и Alembic;
+- `backend/` — FastAPI, Telegram webhook, SQLAlchemy и Alembic;
 - PostgreSQL — отдельный контейнер с именованным volume;
 - Caddy — единственная публичная точка входа, HTTPS и reverse proxy;
 - Docker Compose — сборка и запуск всей системы.
@@ -13,6 +13,7 @@ ClosedClub — закрытое инвестиционное сообществ�
 ```text
 Internet :443 -> Caddy -> React/Nginx :8080
                        -> FastAPI :8000 -> PostgreSQL :5432
+Telegram /start -------> FastAPI webhook -> sendMessage + Web App button
 ```
 
 Frontend, backend и PostgreSQL не публикуют порты на VPS. Данные базы сохраняются в volume `telegram-community-postgres-data`. Сертификаты Caddy сохраняются в существующих volumes.
@@ -31,8 +32,9 @@ chmod 600 .env
 - `SITE_ADDRESS` — домен или текущий публичный IP;
 - `ACME_EMAIL` — email для ACME;
 - `POSTGRES_DB` и `POSTGRES_USER` — имя базы и пользователь;
-- `POSTGRES_PASSWORD` — длинный случайный пароль, который не коммитится.
-- `TELEGRAM_BOT_TOKEN` — актуальный токен бота для серверной проверки Telegram `initData`.
+- `POSTGRES_PASSWORD` — длинный случайный пароль, который не коммитится;
+- `TELEGRAM_BOT_TOKEN` — актуальный токен бота для серверной проверки Telegram `initData`;
+- `TELEGRAM_WEBHOOK_SECRET` — случайная строка из 32–256 латинских букв, цифр, `_` и `-`.
 
 ## Деплой
 
@@ -44,7 +46,19 @@ docker compose up -d --build
 ./scripts/verify.sh
 ```
 
-Скрипт проверки ждёт healthchecks, проверяет публичный HTTPS и `/api/health`, создаёт временную заявку через API, подтверждает её наличие в PostgreSQL, удаляет тестовую запись и проверяет доступность Telegram API.
+Скрипт проверки ждёт healthchecks, проверяет публичный HTTPS, `/api/health`, защиту Telegram webhook, создаёт временную заявку через API, подтверждает её наличие в PostgreSQL, удаляет тестовую запись и проверяет доступность Telegram API.
+
+## Подключение Telegram-бота
+
+После деплоя запустите с компьютера, которому доступен `api.telegram.org`:
+
+```sh
+python scripts/configure_bot.py --web-app-url https://109.172.6.81/
+```
+
+Скрипт безопасно запросит токен и webhook secret без вывода на экран, затем настроит имя `ClosedClub`, команды `/start` и `/help`, постоянную кнопку меню и HTTPS webhook. FastAPI проверяет заголовок `X-Telegram-Bot-Api-Secret-Token`; на `/start` Telegram получает сообщение с кнопкой «Открыть ClosedClub».
+
+Ответ `sendMessage` передаётся прямо в HTTP-ответе webhook, поэтому стартовый экран работает без исходящего запроса VPS к Bot API. Для будущих отложенных уведомлений и произвольных сообщений серверу всё равно потребуется рабочий egress к `api.telegram.org`.
 
 ## API
 

@@ -47,6 +47,28 @@ case "$health_response" in
   *) echo "Unexpected health response: $health_response" >&2; exit 1 ;;
 esac
 
+invalid_webhook_status="$(curl -4sS --max-time 15 \
+  -o /dev/null \
+  -w '%{http_code}' \
+  -H 'Content-Type: application/json' \
+  -H 'X-Telegram-Bot-Api-Secret-Token: invalid' \
+  -d '{"update_id":1}' \
+  "${base_url}/api/telegram/webhook")"
+test "$invalid_webhook_status" = "403" || {
+  echo "Telegram webhook accepted an invalid secret" >&2
+  exit 1
+}
+
+webhook_response="$(curl -4fsS --max-time 15 \
+  -H 'Content-Type: application/json' \
+  -H "X-Telegram-Bot-Api-Secret-Token: ${TELEGRAM_WEBHOOK_SECRET}" \
+  -d '{"update_id":2,"message":{"message_id":3,"from":{"id":999999999,"is_bot":false},"chat":{"id":999999999,"type":"private"},"text":"/start"}}' \
+  "${base_url}/api/telegram/webhook")"
+case "$webhook_response" in
+  *'"method":"sendMessage"'*'"web_app"'*"$base_url"*) ;;
+  *) echo "Unexpected Telegram webhook response: $webhook_response" >&2; exit 1 ;;
+esac
+
 curl -4fsSI --max-time 15 "${base_url}/" >/dev/null
 
 telegram_init_data="$(docker compose exec -T backend python -c '
@@ -87,5 +109,5 @@ test -n "$telegram_status" || { echo "Telegram API is unreachable" >&2; exit 1; 
 
 egress_ip="$(curl -4fsS --max-time 15 https://ifconfig.me/ip)"
 
-printf 'HTTPS: 200\nAPI health: %s\nPostgres write: ok\nTelegram: %s\nEgress IP: %s\n' \
+printf 'HTTPS: 200\nAPI health: %s\nTelegram webhook: ok\nPostgres write: ok\nTelegram: %s\nEgress IP: %s\n' \
   "$health_response" "$telegram_status" "$egress_ip"
