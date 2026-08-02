@@ -4,6 +4,15 @@
 .vscode/
 .DS_Store
 Thumbs.db
+frontend/node_modules/
+frontend/dist/
+backend/__pycache__/
+backend/.pytest_cache/
+.venv/
+.mypy_cache/
+.coverage
+coverage.xml
+*.py[cod]
 
 # VPN credentials and private keys must never be committed.
 vpn/*.conf

@@ -8,20 +8,31 @@
 	tls {
 		issuer acme {
 			profile shortlived
+			disable_http_challenge
 		}
 	}
 
 	encode zstd gzip
-	root * /srv
-	file_server
+
+	@api path /api/*
+	handle @api {
+		request_body {
+			max_size 32KB
+		}
+		header Cache-Control "no-store"
+		reverse_proxy backend:8000
+	}
+
+	handle {
+		reverse_proxy frontend:8080
+	}
 
 	header {
 		Strict-Transport-Security "max-age=31536000; includeSubDomains"
 		X-Content-Type-Options "nosniff"
-		X-Frame-Options "DENY"
 		Referrer-Policy "strict-origin-when-cross-origin"
 		Permissions-Policy "camera=(), microphone=(), geolocation=()"
-		Content-Security-Policy "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
+		Content-Security-Policy "default-src 'self'; script-src 'self' https://telegram.org; style-src 'self'; img-src 'self' data:; connect-src 'self' https://telegram.org; font-src 'self' data:; base-uri 'none'; form-action 'self'; frame-ancestors 'self' https://web.telegram.org https://*.telegram.org"
 		-Server
 	}
 
@@ -29,4 +40,8 @@
 		output stdout
 		format console
 	}
+}
+
+http://127.0.0.1:8081 {
+	respond /health "ok" 200
 }

@@ -1,6 +1,158 @@
 name: telegram-community
 
 services:
+  db:
+    image: postgres:16-alpine
+    container_name: telegram-community-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:?Set POSTGRES_DB in .env}
+      POSTGRES_USER: ${POSTGRES_USER:?Set POSTGRES_USER in .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+    command:
+      - postgres
+      - -c
+      - shared_buffers=64MB
+      - -c
+      - max_connections=20
+      - -c
+      - work_mem=2MB
+      - -c
+      - maintenance_work_mem=32MB
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+      - /var/run/postgresql:size=8m,mode=0775
+    shm_size: 64m
+    mem_limit: 256m
+    pids_limit: 120
+    stop_grace_period: 30s
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+    networks:
+      - database
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
+
+  migrate:
+    image: closedclub-backend:local
+    container_name: telegram-community-migrate
+    build:
+      context: ./backend
+    command: ["alembic", "upgrade", "head"]
+    restart: "no"
+    environment:
+      POSTGRES_HOST: db
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: ${POSTGRES_DB:?Set POSTGRES_DB in .env}
+      POSTGRES_USER: ${POSTGRES_USER:?Set POSTGRES_USER in .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:?Set TELEGRAM_BOT_TOKEN in .env}
+    depends_on:
+      db:
+        condition: service_healthy
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+    mem_limit: 128m
+    pids_limit: 60
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - database
+    logging:
+      driver: json-file
+      options:
+        max-size: 5m
+        max-file: "2"
+
+  backend:
+    image: closedclub-backend:local
+    container_name: telegram-community-backend
+    build:
+      context: ./backend
+    restart: unless-stopped
+    environment:
+      POSTGRES_HOST: db
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: ${POSTGRES_DB:?Set POSTGRES_DB in .env}
+      POSTGRES_USER: ${POSTGRES_USER:?Set POSTGRES_USER in .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:?Set TELEGRAM_BOT_TOKEN in .env}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    expose:
+      - "8000"
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+    mem_limit: 192m
+    pids_limit: 80
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health', timeout=3)"]
+      interval: 15s
+      timeout: 5s
+      retries: 8
+      start_period: 15s
+    networks:
+      - app
+      - database
+      - egress
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
+
+  frontend:
+    image: closedclub-frontend:local
+    container_name: telegram-community-frontend
+    build:
+      context: ./frontend
+    restart: unless-stopped
+    expose:
+      - "8080"
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m,uid=101,gid=101,mode=1777
+    mem_limit: 64m
+    pids_limit: 50
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:8080/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+    networks:
+      - app
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
+
   caddy:
     image: caddy:2.11.4-alpine@sha256:5f5c8640aae01df9654968d946d8f1a56c497f1dd5c5cda4cf95ab7c14d58648
     container_name: telegram-community-caddy
@@ -11,9 +163,13 @@ services:
     environment:
       SITE_ADDRESS: ${SITE_ADDRESS:?Set SITE_ADDRESS in .env}
       ACME_EMAIL: ${ACME_EMAIL:?Set ACME_EMAIL in .env}
+    depends_on:
+      backend:
+        condition: service_healthy
+      frontend:
+        condition: service_healthy
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
-      - ./site:/srv:ro
       - caddy_data:/data
       - caddy_config:/config
     read_only: true
@@ -28,13 +184,14 @@ services:
     security_opt:
       - no-new-privileges:true
     healthcheck:
-      test: ["CMD-SHELL", "wget -q --spider --no-check-certificate https://$${SITE_ADDRESS}/"]
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:8081/health"]
       interval: 30s
       timeout: 5s
       retries: 3
       start_period: 10s
     networks:
       - edge
+      - app
     logging:
       driver: json-file
       options:
@@ -44,9 +201,19 @@ services:
 networks:
   edge:
     name: telegram-community-edge
+  app:
+    name: telegram-community-app
+    internal: true
+  database:
+    name: telegram-community-database
+    internal: true
+  egress:
+    name: telegram-community-egress
 
 volumes:
   caddy_data:
     name: telegram-community-caddy-data
   caddy_config:
     name: telegram-community-caddy-config
+  postgres_data:
+    name: telegram-community-postgres-data

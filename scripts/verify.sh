@@ -3,18 +3,89 @@ set -eu
 
 cd "$(dirname "$0")/.."
 
-if [ ! -f .env ]; then
-  echo "Missing .env." >&2
-  exit 1
-fi
+test -f .env || { echo ".env is missing" >&2; exit 1; }
 
-SITE_ADDRESS="$(sed -n 's/^SITE_ADDRESS=//p' .env | tail -n 1)"
+set -a
+. ./.env
+set +a
 
-if [ -z "$SITE_ADDRESS" ]; then
-  echo "SITE_ADDRESS is empty." >&2
-  exit 1
-fi
+wait_for_service() {
+  service="$1"
+  container_id="$(docker compose ps -q "$service")"
+  test -n "$container_id" || { echo "$service container is missing" >&2; return 1; }
 
-docker compose ps
-curl --fail --silent --show-error --location "https://${SITE_ADDRESS}/" >/dev/null
-echo "HTTPS check passed: https://${SITE_ADDRESS}/"
+  attempts=0
+  while [ "$attempts" -lt 30 ]; do
+    state="$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "$container_id")"
+    if [ "$state" = "healthy" ] || [ "$state" = "running" ]; then
+      return 0
+    fi
+    if [ "$state" = "unhealthy" ] || [ "$state" = "exited" ] || [ "$state" = "dead" ]; then
+      echo "$service is $state" >&2
+      docker compose logs --tail=40 "$service" >&2
+      return 1
+    fi
+    attempts=$((attempts + 1))
+    sleep 4
+  done
+
+  echo "$service did not become healthy in time" >&2
+  docker compose logs --tail=40 "$service" >&2
+  return 1
+}
+
+wait_for_service db
+wait_for_service backend
+wait_for_service frontend
+wait_for_service caddy
+
+base_url="https://${SITE_ADDRESS}"
+
+health_response="$(curl -4fsS --max-time 15 "${base_url}/api/health")"
+case "$health_response" in
+  *'"status":"ok"'*'"database":"ok"'*) ;;
+  *) echo "Unexpected health response: $health_response" >&2; exit 1 ;;
+esac
+
+curl -4fsSI --max-time 15 "${base_url}/" >/dev/null
+
+telegram_init_data="$(docker compose exec -T backend python -c '
+import hashlib
+import hmac
+import json
+import os
+import time
+import urllib.parse
+
+values = {
+    "auth_date": str(int(time.time())),
+    "query_id": "CLOSEDCLUB_SMOKE_TEST",
+    "user": json.dumps(
+        {"id": 999999999, "first_name": "Smoke", "username": "closedclub_smoke"},
+        separators=(",", ":"),
+    ),
+}
+check = "\n".join(f"{key}={value}" for key, value in sorted(values.items()))
+secret = hmac.new(b"WebAppData", os.environ["TELEGRAM_BOT_TOKEN"].encode(), hashlib.sha256).digest()
+values["hash"] = hmac.new(secret, check.encode(), hashlib.sha256).hexdigest()
+print(urllib.parse.urlencode(values))
+')"
+
+application_response="$(curl -4fsS --max-time 15 \
+  -H 'Content-Type: application/json' \
+  -H "X-Telegram-Init-Data: ${telegram_init_data}" \
+  -d '{"first_name":"Smoke","last_name":"Test","occupation":"Automated verification","monthly_income":1,"city":"Test"}' \
+  "${base_url}/api/applications")"
+
+application_id="$(printf '%s' "$application_response" | docker compose exec -T backend python -c 'import json,sys; print(json.load(sys.stdin)["id"])')"
+stored_count="$(docker compose exec -T db psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Atc "SELECT count(*) FROM applications WHERE id = '$application_id';")"
+test "$stored_count" = "1" || { echo "Smoke application was not stored" >&2; exit 1; }
+docker compose exec -T db psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Atc "DELETE FROM applications WHERE id = '$application_id';" >/dev/null
+
+telegram_status="$(curl -sSI --max-time 15 https://api.telegram.org | sed -n '1p')"
+test -n "$telegram_status" || { echo "Telegram API is unreachable" >&2; exit 1; }
+
+egress_ip="$(curl -4fsS --max-time 15 https://ifconfig.me/ip)"
+
+printf 'HTTPS: 200\nAPI health: %s\nPostgres write: ok\nTelegram: %s\nEgress IP: %s\n' \
+  "$health_response" "$telegram_status" "$egress_ip"
