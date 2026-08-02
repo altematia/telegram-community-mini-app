@@ -31,6 +31,7 @@ chmod 600 .env
 
 - `SITE_ADDRESS` — домен или текущий публичный IP;
 - `TELEGRAM_WEBHOOK_ADDRESS` — DNS-имя для Telegram webhook, указывающее на VPS;
+- `TELEGRAM_WEBHOOK_PORT` — порт webhook; для текущего VPS используется `8443`;
 - `ACME_EMAIL` — email для ACME;
 - `POSTGRES_DB` и `POSTGRES_USER` — имя базы и пользователь;
 - `POSTGRES_PASSWORD` — длинный случайный пароль, который не коммитится;
@@ -56,7 +57,7 @@ docker compose up -d --build
 ```sh
 python scripts/configure_bot.py \
   --web-app-url https://109.172.6.81/ \
-  --webhook-url https://109-172-6-81.sslip.io/api/telegram/webhook
+  --webhook-url https://109-172-6-81.sslip.io:8443/api/telegram/webhook
 ```
 
 Если на машине несколько сетевых маршрутов, можно явно выбрать исходящий адрес: `--source-address 192.168.1.8`.

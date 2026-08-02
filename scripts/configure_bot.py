@@ -143,15 +143,15 @@ def main() -> int:
         or not parsed_webhook_url.hostname
         or parsed_webhook_url.username is not None
         or parsed_webhook_url.password is not None
-        or webhook_port not in (None, 443)
+        or webhook_port not in (None, 443, 8443)
         or parsed_webhook_url.path != "/api/telegram/webhook"
         or parsed_webhook_url.params
         or parsed_webhook_url.query
         or parsed_webhook_url.fragment
     ):
         parser.error(
-            "--webhook-url must be an HTTPS URL on port 443 with the exact "
-            "path /api/telegram/webhook and no query or fragment"
+            "--webhook-url must be an HTTPS URL on port 443 or 8443 with "
+            "the exact path /api/telegram/webhook and no query or fragment"
         )
 
     token = read_secret("TELEGRAM_BOT_TOKEN", "Telegram bot token: ")

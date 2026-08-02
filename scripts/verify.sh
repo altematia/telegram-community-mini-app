@@ -41,7 +41,12 @@ wait_for_service caddy
 
 base_url="https://${SITE_ADDRESS}"
 : "${TELEGRAM_WEBHOOK_ADDRESS:?Set TELEGRAM_WEBHOOK_ADDRESS in .env}"
-webhook_base_url="https://${TELEGRAM_WEBHOOK_ADDRESS}"
+webhook_port="${TELEGRAM_WEBHOOK_PORT:-443}"
+case "$webhook_port" in
+  443) webhook_base_url="https://${TELEGRAM_WEBHOOK_ADDRESS}" ;;
+  8443) webhook_base_url="https://${TELEGRAM_WEBHOOK_ADDRESS}:8443" ;;
+  *) echo "TELEGRAM_WEBHOOK_PORT must be 443 or 8443" >&2; exit 1 ;;
+esac
 
 health_response="$(curl -4fsS --max-time 15 "${base_url}/api/health")"
 case "$health_response" in
